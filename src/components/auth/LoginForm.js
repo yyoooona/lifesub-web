@@ -41,7 +41,7 @@ const LoginForm = ({ onSubmit, error }) => {
        }}
      >
        <img 
-         src="/logo192.png" 
+         src="/images/logo192.png" 
          alt="마이구독 로고" 
          style={{ 
            width: '100px',
