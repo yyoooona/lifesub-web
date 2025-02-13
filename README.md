@@ -31,28 +31,29 @@ npm start
 
 ### 테스트 계정
 ```
-ID: user01
+ID: user01  
 Password: Passw0rd
 ```
 
 ## 주요 기능
-로그인/로그아웃
-총 구독료 조회
-구독 등급별 이미지 표시
-나의 구독 서비스 목록
-지출 패턴 기반 구독 추천
-카테고리별 구독 서비스 조회
-구독 서비스 상세 정보
-구독 신청/취소
+로그인/로그아웃  
+총 구독료 조회  
+구독 등급별 이미지 표시  
+나의 구독 서비스 목록  
+지출 패턴 기반 구독 추천  
+카테고리별 구독 서비스 조회  
+구독 서비스 상세 정보   
+구독 신청/취소  
 
 ## 기술 스택
-React 18
-React Router DOM 6
-Material UI 5
-Axios
-Context API
+React 18  
+React Router DOM 6  
+Material UI 5  
+Axios  
+Context API  
 
 ## 폴더 구조
+```
 src/
   ├── components/         # 재사용 가능한 컴포넌트
   │   ├── auth/          # 인증 관련 
@@ -63,9 +64,10 @@ src/
   ├── pages/            # 페이지 컴포넌트
   ├── services/         # API 통신
   └── utils/            # 유틸리티 함수
+```
 
 ## 환경 요구사항
-Node.js 18 이상
-npm 9 이상
+Node.js 18 이상  
+npm 9 이상  
 
 
