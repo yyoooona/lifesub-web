@@ -2,11 +2,6 @@
 import axios from 'axios';
 
 // 서비스별 base URL
-/*
-const MEMBER_URL = process.env.REACT_APP_MEMBER_URL || 'http://localhost:8081';
-const MYSUB_URL = process.env.REACT_APP_MYSUB_URL || 'http://localhost:8082';
-const RECOMMEND_URL = process.env.REACT_APP_RECOMMEND_URL || 'http://localhost:8083';
-*/
 const MEMBER_URL = window.__runtime_config__.MEMBER_URL || 'http://localhost:8081';
 const MYSUB_URL = window.__runtime_config__.MYSUB_URL || 'http://localhost:8082';
 const RECOMMEND_URL = window.__runtime_config__.RECOMMEND_URL || 'http://localhost:8083';
