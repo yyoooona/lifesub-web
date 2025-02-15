@@ -30,10 +30,9 @@ RUN adduser -S nginx || true
 COPY --from=builder /app/build /usr/share/nginx/html
 
 # Create runtime config
-/*
-index.html의 헤더에서 이 값을 읽어 환경변수를 생성함  
-api.js에서 이 환경변수를 이용함: 예) window.__runtime_config__.MEMBER_URL
-*/
+#index.html의 헤더에서 이 값을 읽어 환경변수를 생성함  
+#api.js에서 이 환경변수를 이용함: 예) window.__runtime_config__.MEMBER_URL
+
 RUN echo "window.__runtime_config__ = { \
     MEMBER_URL: '${REACT_APP_MEMBER_URL}', \
     MYSUB_URL: '${REACT_APP_MYSUB_URL}', \
