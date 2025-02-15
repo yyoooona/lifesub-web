@@ -1,9 +1,6 @@
 # Build stage
 FROM node:20-slim AS builder
 ARG PROJECT_FOLDER
-ARG REACT_APP_MEMBER_URL
-ARG REACT_APP_MYSUB_URL
-ARG REACT_APP_RECOMMEND_URL
 
 ENV NODE_ENV=production
 
@@ -20,19 +17,28 @@ RUN npm run build
 # Run stage
 FROM nginx:stable-alpine
 
-# 시스템 환경변수 셋팅: api.js에서 사용하는 시스템 환경변수를 build시 셋팅해야 생성됨  
-ENV REACT_APP_MEMBER_URL=${REACT_APP_MEMBER_URL}
-ENV REACT_APP_MYSUB_URL=${REACT_APP_MYSUB_URL}
-ENV REACT_APP_RECOMMEND_URL=${REACT_APP_RECOMMEND_URL}
-
 ARG BUILD_FOLDER
 ARG EXPORT_PORT
+ARG REACT_APP_MEMBER_URL
+ARG REACT_APP_MYSUB_URL
+ARG REACT_APP_RECOMMEND_URL
 
 # Create nginx user if it doesn't exist
 RUN adduser -S nginx || true
 
 # Copy build files
 COPY --from=builder /app/build /usr/share/nginx/html
+
+# Create runtime config
+/*
+index.html의 헤더에서 이 값을 읽어 환경변수를 생성함  
+api.js에서 이 환경변수를 이용함: 예) window.__runtime_config__.MEMBER_URL
+*/
+RUN echo "window.__runtime_config__ = { \
+    MEMBER_URL: '${REACT_APP_MEMBER_URL}', \
+    MYSUB_URL: '${REACT_APP_MYSUB_URL}', \
+    RECOMMEND_URL: '${REACT_APP_RECOMMEND_URL}' \
+}" > /usr/share/nginx/html/runtime-env.js
 
 # Copy and process nginx configuration
 COPY ${BUILD_FOLDER}/nginx.conf /etc/nginx/templates/default.conf.template
