@@ -2,22 +2,40 @@ name: Frontend CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 env:
-  REGISTRY: ${{ vars.REGISTRY || 'dg0200cr.azurecr.io' }}
-  IMAGE_ORG: ${{ vars.IMAGE_ORG || 'lifesub' }}
+  # Team Settings
+  TEAMID: dg0200
+  ROOT_PROJECT: lifesub-web
+  
+  # Container Registry Settings
+  REGISTRY: dg0200cr.azurecr.io
+  IMAGE_ORG: lifesub
+  
+  # Application Settings
+  REPLICAS: 1
+  EXPORT_PORT: 18080
+  
+  # Backend Service URLs
+  REACT_APP_MEMBER_URL: http://20.249.185.127/member
+  REACT_APP_MYSUB_URL: http://20.249.185.127/mysub
+  REACT_APP_RECOMMEND_URL: http://20.249.185.127/recommend
+  
+  # Resource Settings
+  RESOURCES_REQUESTS_CPU: 256m
+  RESOURCES_REQUESTS_MEMORY: 256Mi
+  RESOURCES_LIMITS_CPU: 1024m
+  RESOURCES_LIMITS_MEMORY: 1024Mi
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
           node-version: '20'
           
@@ -26,61 +44,58 @@ jobs:
         
       - name: Build application
         run: npm run build
-        env:
-          CI: false
-          
+        
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
-          path: build
+          path: build/
 
   release:
     needs: build
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.set-tag.outputs.tag }}
-      
+      image_tag: ${{ steps.create_tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       
+      - name: Create image tag
+        id: create_tag
+        run: |
+          tag=$(date +'%Y%m%d%H%M%S')
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+          
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: build-artifacts
-          path: build
+          path: build/
           
-      - name: Set timestamp for image tag
-        id: set-tag
-        run: echo "tag=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
-        
-      - name: Login to Azure Container Registry
+      - name: Azure Container Registry login
         uses: azure/docker-login@v1
         with:
           login-server: ${{ env.REGISTRY }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
           
-      - name: Build and push image
+      - name: Build and push Docker image
         run: |
           docker build \
             --build-arg PROJECT_FOLDER="." \
-            --build-arg REACT_APP_MEMBER_URL="${{ secrets.REACT_APP_MEMBER_URL }}" \
-            --build-arg REACT_APP_MYSUB_URL="${{ secrets.REACT_APP_MYSUB_URL }}" \
-            --build-arg REACT_APP_RECOMMEND_URL="${{ secrets.REACT_APP_RECOMMEND_URL }}" \
+            --build-arg REACT_APP_MEMBER_URL="${{ env.REACT_APP_MEMBER_URL }}" \
+            --build-arg REACT_APP_MYSUB_URL="${{ env.REACT_APP_MYSUB_URL }}" \
+            --build-arg REACT_APP_RECOMMEND_URL="${{ env.REACT_APP_RECOMMEND_URL }}" \
             --build-arg BUILD_FOLDER="deployment" \
-            --build-arg EXPORT_PORT="18080" \
+            --build-arg EXPORT_PORT="${{ env.EXPORT_PORT }}" \
             -f deployment/Dockerfile-lifesub-web \
-            -t ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/lifesub-web:${{ steps.set-tag.outputs.tag }} .
-            
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/lifesub-web:${{ steps.set-tag.outputs.tag }}
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/lifesub-web:${{ steps.create_tag.outputs.tag }} .
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/lifesub-web:${{ steps.create_tag.outputs.tag }}
 
   deploy:
     needs: release
     runs-on: ubuntu-latest
-    
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       
       - name: Azure login
         uses: azure/login@v1
@@ -91,23 +106,24 @@ jobs:
         uses: azure/aks-set-context@v3
         with:
           resource-group: ictcoe-edu
-          cluster-name: dg0200-aks
+          cluster-name: ${{ env.TEAMID }}-aks
           
-      - name: Load environment variables
-        run: source deployment/deploy_env_vars-front
-        
-      - name: Generate manifest
+      - name: Create namespace
         run: |
-          export namespace=dg0200-lifesub-web-ns
-          export lifesub_web_image_path=${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/lifesub-web:${{ needs.release.outputs.image_tag }}
-          export replicas=1
-          export export_port=18080
-          export resources_requests_cpu=256m
-          export resources_requests_memory=256Mi
-          export resources_limits_cpu=1024m
-          export resources_limits_memory=1024Mi
+          kubectl create namespace ${{ env.TEAMID }}-${{ env.ROOT_PROJECT }}-ns --dry-run=client -o yaml | kubectl apply -f -
           
-          envsubst < deployment/deploy.yaml.template-front > deployment/deploy.yaml
+      - name: Generate deployment manifest
+        run: |
+          export namespace=${{ env.TEAMID }}-${{ env.ROOT_PROJECT }}-ns
+          export lifesub_web_image_path=${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/lifesub-web:${{ needs.release.outputs.image_tag }}
+          export replicas=${{ env.REPLICAS }}
+          export export_port=${{ env.EXPORT_PORT }}
+          export resources_requests_cpu=${{ env.RESOURCES_REQUESTS_CPU }}
+          export resources_requests_memory=${{ env.RESOURCES_REQUESTS_MEMORY }}
+          export resources_limits_cpu=${{ env.RESOURCES_LIMITS_CPU }}
+          export resources_limits_memory=${{ env.RESOURCES_LIMITS_MEMORY }}
+          
+          envsubst < deployment/deploy.yaml.template > deployment/deploy.yaml
           cat deployment/deploy.yaml
           
       - name: Deploy to AKS
@@ -115,10 +131,10 @@ jobs:
           kubectl apply -f deployment/deploy.yaml
           
           echo "Waiting for deployment to be ready..."
-          kubectl -n dg0200-lifesub-web-ns wait --for=condition=available deployment/lifesub-web --timeout=300s
+          kubectl -n ${{ env.TEAMID }}-${{ env.ROOT_PROJECT }}-ns wait --for=condition=available deployment/lifesub-web --timeout=300s
           
           echo "Waiting for service external IP..."
-          while [[ -z $(kubectl -n dg0200-lifesub-web-ns get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}') ]]; do
+          while [[ -z $(kubectl -n ${{ env.TEAMID }}-${{ env.ROOT_PROJECT }}-ns get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}') ]]; do
             sleep 5
           done
-          echo "Service external IP: $(kubectl -n dg0200-lifesub-web-ns get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+          echo "Service external IP: $(kubectl -n ${{ env.TEAMID }}-${{ env.ROOT_PROJECT }}-ns get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
