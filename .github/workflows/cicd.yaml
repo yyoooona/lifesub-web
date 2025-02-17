@@ -2,7 +2,8 @@ name: Frontend CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 env:
   REGISTRY: dg0200cr.azurecr.io
@@ -13,95 +14,99 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set-image-tag.outputs.image_tag }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-
+          
       - name: Install dependencies
         run: npm ci
-
+        
       - name: Build application
         run: npm run build
-
+        
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-files
           path: build/
+          
+      - name: Generate image tag
+        id: set-image-tag
+        run: |
+          timestamp=$(date '+%Y%m%d%H%M%S')
+          echo "image_tag=${timestamp}" >> $GITHUB_OUTPUT
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.set_tag.outputs.tag }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: build-files
-          path: build/
-
-      - name: Generate image tag
-        id: set_tag
-        run: |
-          tag=$(date +'%Y%m%d%H%M%S')
-          echo "tag=${tag}" >> $GITHUB_OUTPUT
-
+          path: build
+          
       - name: Login to Azure Container Registry
         uses: azure/docker-login@v1
         with:
           login-server: ${{ env.REGISTRY }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
-
+          
       - name: Build and push Docker image
-        run: |
-          docker build \
-            --build-arg PROJECT_FOLDER="." \
-            --build-arg REACT_APP_MEMBER_URL="http://20.249.185.127/member" \
-            --build-arg REACT_APP_MYSUB_URL="http://20.249.185.127/mysub" \
-            --build-arg REACT_APP_RECOMMEND_URL="http://20.249.185.127/recommend" \
-            --build-arg BUILD_FOLDER="deployment" \
-            --build-arg EXPORT_PORT="18080" \
-            -f deployment/Dockerfile-lifesub-web \
-            -t ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/${{ env.APP_NAME }}:${{ steps.set_tag.outputs.tag }} .
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/${{ env.APP_NAME }}:${{ steps.set_tag.outputs.tag }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deployment/Dockerfile-lifesub-web
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/${{ env.APP_NAME }}:${{ needs.build.outputs.image_tag }}
+          build-args: |
+            PROJECT_FOLDER=.
+            REACT_APP_MEMBER_URL=http://20.249.185.127/member
+            REACT_APP_MYSUB_URL=http://20.249.185.127/mysub
+            REACT_APP_RECOMMEND_URL=http://20.249.185.127/recommend
+            BUILD_FOLDER=deployment
+            EXPORT_PORT=18080
 
   deploy:
-    needs: release
+    needs: [build, release]
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Azure Login
+        
+      - name: Azure login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
+          
       - name: Set AKS context
         uses: azure/aks-set-context@v3
         with:
           resource-group: ictcoe-edu
           cluster-name: dg0200-aks
-
+          
       - name: Create namespace if not exists
         run: |
           kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-
+          
       - name: Generate deployment manifest
         run: |
           export namespace=${{ env.NAMESPACE }}
-          export lifesub_web_image_path=${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/${{ env.APP_NAME }}:${{ needs.release.outputs.image_tag }}
+          export lifesub_web_image_path=${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/${{ env.APP_NAME }}:${{ needs.build.outputs.image_tag }}
           export replicas=1
           export export_port=18080
           export resources_requests_cpu=256m
@@ -112,12 +117,10 @@ jobs:
           envsubst < deployment/deploy.yaml.template > deployment/deploy.yaml
           echo "Generated manifest:"
           cat deployment/deploy.yaml
-
+          
       - name: Deploy to AKS
         run: |
           kubectl apply -f deployment/deploy.yaml
-          
-          echo "Waiting for deployment to be ready..."
           kubectl -n ${{ env.NAMESPACE }} wait --for=condition=available deployment/lifesub-web --timeout=300s
           
           echo "Waiting for service external IP..."
