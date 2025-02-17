@@ -1,0 +1,22 @@
+# Team Settings
+teamid=dg0200
+root_project=lifesub-web
+
+# Container Registry Settings
+registry=dg0200cr.azurecr.io
+image_org=lifesub
+
+# Application Settings
+replicas=1
+export_port=18080
+
+# Backend Service URLs
+react_app_member_url=http://20.249.185.127/member
+react_app_mysub_url=http://20.249.185.127/mysub
+react_app_recommend_url=http://20.249.185.127/recommend
+
+# Resource Settings
+resources_requests_cpu=256m
+resources_requests_memory=256Mi
+resources_limits_cpu=1024m
+resources_limits_memory=1024Mi

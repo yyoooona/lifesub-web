@@ -1,0 +1,44 @@
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lifesub-web
+  namespace: ${namespace}
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app: lifesub-web
+  template:
+    metadata:
+      labels:
+        app: lifesub-web
+    spec:
+      containers:
+      - name: lifesub-web
+        image: ${lifesub_web_image_path}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: ${export_port}
+        resources:
+          requests:
+            cpu: ${resources_requests_cpu}
+            memory: ${resources_requests_memory}
+          limits:
+            cpu: ${resources_limits_cpu}
+            memory: ${resources_limits_memory}
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: lifesub-web
+  namespace: ${namespace}
+spec:
+  selector:
+    app: lifesub-web
+  ports:
+  - port: 80
+    targetPort: ${export_port}
+  type: LoadBalancer
