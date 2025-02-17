@@ -2,29 +2,24 @@ name: Frontend CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 env:
-  REGISTRY: dg0200cr.azurecr.io
-  IMAGE_ORG: lifesub
-  APP_NAME: lifesub-web
-  NAMESPACE: dg0200-lifesub-web-ns
+  PROJECT_FOLDER: "."
+  BUILD_FOLDER: "deployment"
 
 jobs:
+  # Build stage
   build:
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.set-image-tag.outputs.image_tag }}
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
           
       - name: Install dependencies
         run: npm ci
@@ -37,57 +32,71 @@ jobs:
         with:
           name: build-files
           path: build/
-          
-      - name: Generate image tag
-        id: set-image-tag
-        run: |
-          timestamp=$(date '+%Y%m%d%H%M%S')
-          echo "image_tag=${timestamp}" >> $GITHUB_OUTPUT
+          retention-days: 1
 
+  # Release stage
   release:
     needs: build
     runs-on: ubuntu-latest
-    
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.tag }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
+      - uses: actions/checkout@v4
+      
+      - name: Load environment variables
+        run: |
+          props=$(cat deployment/deploy_env_vars)
+          echo "$props" >> $GITHUB_ENV
+          
+      - name: Set image tag
+        id: set-tag
+        run: |
+          timestamp=$(date +'%Y%m%d%H%M%S')
+          echo "tag=${timestamp}" >> $GITHUB_OUTPUT
+          
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: build-files
-          path: build
+          path: build/
           
-      - name: Login to Azure Container Registry
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to Azure Container Registry
         uses: azure/docker-login@v1
         with:
-          login-server: ${{ env.REGISTRY }}
+          login-server: ${{ env.registry }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
           
-      - name: Build and push Docker image
+      - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: deployment/Dockerfile-lifesub-web
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/${{ env.APP_NAME }}:${{ needs.build.outputs.image_tag }}
+          tags: ${{ env.registry }}/${{ env.image_org }}/lifesub-web:${{ steps.set-tag.outputs.tag }}
           build-args: |
-            PROJECT_FOLDER=.
-            REACT_APP_MEMBER_URL=http://20.249.185.127/member
-            REACT_APP_MYSUB_URL=http://20.249.185.127/mysub
-            REACT_APP_RECOMMEND_URL=http://20.249.185.127/recommend
-            BUILD_FOLDER=deployment
-            EXPORT_PORT=18080
+            PROJECT_FOLDER=${{ env.PROJECT_FOLDER }}
+            BUILD_FOLDER=${{ env.BUILD_FOLDER }}
+            EXPORT_PORT=${{ env.export_port }}
+            REACT_APP_MEMBER_URL=${{ env.react_app_member_url }}
+            REACT_APP_MYSUB_URL=${{ env.react_app_mysub_url }}
+            REACT_APP_RECOMMEND_URL=${{ env.react_app_recommend_url }}
 
+  # Deploy stage
   deploy:
-    needs: [build, release]
+    needs: release
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
+      - uses: actions/checkout@v4
+      
+      - name: Load environment variables
+        run: |
+          props=$(cat deployment/deploy_env_vars)
+          echo "$props" >> $GITHUB_ENV
+          
       - name: Azure login
         uses: azure/login@v1
         with:
@@ -97,22 +106,22 @@ jobs:
         uses: azure/aks-set-context@v3
         with:
           resource-group: ictcoe-edu
-          cluster-name: dg0200-aks
+          cluster-name: ${{ env.teamid }}-aks
           
-      - name: Create namespace if not exists
+      - name: Create namespace
         run: |
-          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace ${{ env.teamid }}-${{ env.root_project }}-ns --dry-run=client -o yaml | kubectl apply -f -
           
       - name: Generate deployment manifest
         run: |
-          export namespace=${{ env.NAMESPACE }}
-          export lifesub_web_image_path=${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/${{ env.APP_NAME }}:${{ needs.build.outputs.image_tag }}
-          export replicas=1
-          export export_port=18080
-          export resources_requests_cpu=256m
-          export resources_requests_memory=256Mi
-          export resources_limits_cpu=1024m
-          export resources_limits_memory=1024Mi
+          export namespace=${{ env.teamid }}-${{ env.root_project }}-ns
+          export lifesub_web_image_path=${{ env.registry }}/${{ env.image_org }}/lifesub-web:${{ needs.release.outputs.image_tag }}
+          export replicas=${{ env.replicas }}
+          export export_port=${{ env.export_port }}
+          export resources_requests_cpu=${{ env.resources_requests_cpu }}
+          export resources_requests_memory=${{ env.resources_requests_memory }}
+          export resources_limits_cpu=${{ env.resources_limits_cpu }}
+          export resources_limits_memory=${{ env.resources_limits_memory }}
           
           envsubst < deployment/deploy.yaml.template > deployment/deploy.yaml
           echo "Generated manifest:"
@@ -121,10 +130,11 @@ jobs:
       - name: Deploy to AKS
         run: |
           kubectl apply -f deployment/deploy.yaml
-          kubectl -n ${{ env.NAMESPACE }} wait --for=condition=available deployment/lifesub-web --timeout=300s
+          echo "Waiting for deployment to be ready..."
+          kubectl -n ${{ env.teamid }}-${{ env.root_project }}-ns wait --for=condition=available deployment/lifesub-web --timeout=300s
           
           echo "Waiting for service external IP..."
-          while [[ -z $(kubectl -n ${{ env.NAMESPACE }} get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}') ]]; do
+          while [[ -z $(kubectl -n ${{ env.teamid }}-${{ env.root_project }}-ns get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}') ]]; do
             sleep 5
           done
-          echo "Service external IP: $(kubectl -n ${{ env.NAMESPACE }} get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+          echo "Service external IP: $(kubectl -n ${{ env.teamid }}-${{ env.root_project }}-ns get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
