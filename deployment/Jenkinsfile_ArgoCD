@@ -120,7 +120,7 @@ podTemplate(
                         
                         # Update frontend image tag
                         if [ -f lifesub-web/deployments/lifesub-web-deployment.yaml ]; then
-                            sed -i "s|image: ${props.registry}/${props.image_org}/lifesub-web:.*|image: ${props.registry}/${props.image_org}/lifesub-web:${imageTag}|g" lifesub-web/deployments/lifesub-web.yaml
+                            sed -i "s|image: ${props.registry}/${props.image_org}/lifesub-web:.*|image: ${props.registry}/${props.image_org}/lifesub-web:${imageTag}|g" lifesub-web/deployments/lifesub-web-deployment.yaml
                         fi
                         
                         # Commit and push changes
