@@ -62,8 +62,15 @@ jobs:
     
     - name: Load environment variables
       run: |
-        env_vars=$(cat deployment/deploy_env_vars)
-        echo "$env_vars" >> $GITHUB_ENV
+        while IFS= read -r line || [ -n "$line" ]; do
+          # Skip comments and empty lines
+          if [[ "$line" =~ ^#.*$ ]] || [[ -z "$line" ]]; then
+            continue
+          fi
+          
+          # Export the environment variable
+          echo "$line" >> $GITHUB_ENV
+        done < deployment/deploy_env_vars
     
     - name: Generate image tag
       id: set_outputs
