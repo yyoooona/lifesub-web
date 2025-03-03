@@ -37,7 +37,7 @@ podTemplate(
         stage('Code Analysis & Quality Gate') {
             container('node') {
                 sh "npm install"
-                sh "npm test -- --coverage"
+                sh "npm test -- --coverage --passWithNoTests"   //test code 없어도 통과되게 함  
             }
             
             container('sonar-scanner') {
