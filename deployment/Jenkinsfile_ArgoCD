@@ -33,10 +33,12 @@ podTemplate(
         def imageTag = getImageTag()
         def manifestRepo = 'cna-bootcamp/lifesub-manifest'
         def manifestBranch = 'main'
+        def namespace
         
         stage("Get Source") {
             checkout scm
             props = readProperties file: "deployment/deploy_env_vars"
+            namespace = "${props.namespace}"
         }
 
         stage('Build & Push Image') {

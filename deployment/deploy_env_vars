@@ -1,6 +1,7 @@
 # Team Settings
 teamid=unicorn
 root_project=lifesub-web
+namespace=lifesub
 
 # Container Registry Settings
 registry=unicorncr.azurecr.io
