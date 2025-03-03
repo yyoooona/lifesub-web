@@ -1,211 +1,191 @@
 name: Frontend CI/CD Pipeline
- 
+
 on:
   push:
-    branches: 
-      - main
+    branches: [main]
     paths:
       - '**'
-      - '!.github/**'
       - '!**.md'
- 
+      - '!.github/**'
+      - '.github/workflows/cicd.yaml'
+
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.set_outputs.outputs.image_tag }}
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run tests
-      run: npm test -- --coverage --passWithNoTests
-    
-    - name: SonarQube Scan
-      uses: SonarSource/sonarqube-scan-action@master
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      with:
-        args: >
-          -Dsonar.projectKey=lifesub-web
-          -Dsonar.sources=src
-          -Dsonar.tests=src
-          -Dsonar.test.inclusions=src/**/*.test.js,src/**/*.test.jsx
-          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-    
-    - name: SonarQube Quality Gate check
-      uses: SonarSource/sonarqube-quality-gate-action@master
-      timeout-minutes: 5
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    
-    - name: Build application
-      run: npm run build
-    
-    - name: Upload build artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: build
-        path: build/
-    
-    - name: Load environment variables
-      run: |
-        while IFS= read -r line || [ -n "$line" ]; do
-          # Skip comments and empty lines
-          if [[ "$line" =~ ^#.*$ ]] || [[ -z "$line" ]]; then
-            continue
-          fi
-          
-          # Export the environment variable
-          echo "$line" >> $GITHUB_ENV
-        done < deployment/deploy_env_vars
-    
-    - name: Generate image tag
-      id: set_outputs
-      run: |
-        IMAGE_TAG=$(date '+%Y%m%d%H%M%S')
-        echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-        echo "Image tag: ${IMAGE_TAG}"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --coverage --passWithNoTests
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=lifesub-web
+            -Dsonar.sources=src
+            -Dsonar.tests=src
+            -Dsonar.test.inclusions=src/**/*.test.js,src/**/*.test.jsx
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      - name: SonarQube Quality Gate check
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build/
+          retention-days: 1
 
   release:
     name: Release
     needs: build
     runs-on: ubuntu-latest
-    
+    outputs:
+      image_tag: ${{ steps.set_image_tag.outputs.image_tag }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Download build artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: build
-        path: build/
-    
-    - name: Load environment variables
-      run: |
-        env_vars=$(cat deployment/deploy_env_vars)
-        echo "$env_vars" >> $GITHUB_ENV
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Login to ACR
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.registry }}
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
-    
-    - name: Build and push image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: ${{ env.registry }}/${{ env.image_org }}/lifesub-web:${{ needs.build.outputs.image_tag }}
-        build-args: |
-          PROJECT_FOLDER=.
-          REACT_APP_MEMBER_URL=${{ env.react_app_member_url }}
-          REACT_APP_MYSUB_URL=${{ env.react_app_mysub_url }}
-          REACT_APP_RECOMMEND_URL=${{ env.react_app_recommend_url }}
-          BUILD_FOLDER=deployment
-          EXPORT_PORT=${{ env.export_port }}
-        file: deployment/Dockerfile-lifesub-web
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Image Tag
+        id: set_image_tag
+        run: |
+          IMAGE_TAG=$(date +'%Y%m%d%H%M%S')
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Load environment variables
+        run: |
+          if [[ -f deployment/deploy_env_vars ]]; then
+            grep -v '^#' deployment/deploy_env_vars | while IFS= read -r line; do
+              [[ -z "$line" ]] && continue
+              echo "$line" >> $GITHUB_ENV
+            done
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.registry }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: build/
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deployment/Dockerfile-lifesub-web
+          push: true
+          tags: ${{ env.registry }}/${{ env.image_org }}/lifesub-web:${{ steps.set_image_tag.outputs.image_tag }}
+          build-args: |
+            PROJECT_FOLDER=.
+            REACT_APP_MEMBER_URL=${{ env.react_app_member_url }}
+            REACT_APP_MYSUB_URL=${{ env.react_app_mysub_url }}
+            REACT_APP_RECOMMEND_URL=${{ env.react_app_recommend_url }}
+            BUILD_FOLDER=deployment
+            EXPORT_PORT=${{ env.export_port }}
 
   deploy:
     name: Deploy
-    needs: [build, release]
+    needs: release
     runs-on: ubuntu-latest
-    
+    env:
+      IMAGE_TAG: ${{ needs.release.outputs.image_tag }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Load environment variables
-      run: |
-        env_vars=$(cat deployment/deploy_env_vars)
-        echo "$env_vars" >> $GITHUB_ENV
-    
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v3
-    
-    - name: Set AKS context
-      uses: azure/aks-set-context@v3
-      with:
-        resource-group: ictcoe-edu
-        cluster-name: ${{ env.teamid }}-aks
-        admin: 'false'
-        use-kubelogin: 'true'
-      env:
-        AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-    
-    - name: Create namespace if not exists
-      run: |
-        kubectl create namespace ${{ env.namespace }} --dry-run=client -o yaml | kubectl apply -f -
-    
-    - name: Install envsubst
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gettext-base
-    
-    - name: Generate manifest
-      env:
-        IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-      run: |
-        # Export variables for envsubst
-        export namespace=${{ env.namespace }}
-        export lifesub_web_image_path=${{ env.registry }}/${{ env.image_org }}/lifesub-web:${IMAGE_TAG}
-        export replicas=${{ env.replicas }}
-        export export_port=${{ env.export_port }}
-        export resources_requests_cpu=${{ env.resources_requests_cpu }}
-        export resources_requests_memory=${{ env.resources_requests_memory }}
-        export resources_limits_cpu=${{ env.resources_limits_cpu }}
-        export resources_limits_memory=${{ env.resources_limits_memory }}
-        
-        # Generate deployment file
-        envsubst < deployment/deploy.yaml.template > deployment/deploy.yaml
-        
-        # For debugging
-        echo "Generated manifest:"
-        cat deployment/deploy.yaml
-    
-    - name: Deploy to AKS
-      run: |
-        kubectl apply -f deployment/deploy.yaml
-        
-        echo "Waiting for deployment to be ready..."
-        kubectl -n ${{ env.namespace }} wait --for=condition=available deployment/lifesub-web --timeout=300s
-        
-        echo "Service details:"
-        kubectl -n ${{ env.namespace }} get svc lifesub-web -o wide
-    
-    - name: Wait for external IP
-      run: |
-        echo "Waiting for service external IP..."
-        for i in {1..30}; do
-          IP=$(kubectl -n ${{ env.namespace }} get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          if [ -n "$IP" ]; then
-            echo "Service external IP: $IP"
-            break
-          fi
-          echo "Waiting for external IP... attempt $i/30"
-          sleep 10
-        done
-        
-        if [ -z "$IP" ]; then
-          echo "Failed to get external IP after 5 minutes"
-          exit 1
-        fi
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Load environment variables
+        run: |
+          if [[ -f deployment/deploy_env_vars ]]; then
+            grep -v '^#' deployment/deploy_env_vars | while IFS= read -r line; do
+              [[ -z "$line" ]] && continue
+              echo "$line" >> $GITHUB_ENV
+            done
+          fi
+
+      - name: Install envsubst
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext-base
+
+      - name: Generate Kubernetes manifests
+        run: |
+          export namespace=${namespace}
+          export lifesub_web_image_path=${registry}/${image_org}/lifesub-web:${IMAGE_TAG}
+          export replicas=${replicas}
+          export export_port=${export_port}
+          export resources_requests_cpu=${resources_requests_cpu}
+          export resources_requests_memory=${resources_requests_memory}
+          export resources_limits_cpu=${resources_limits_cpu}
+          export resources_limits_memory=${resources_limits_memory}
+          
+          envsubst < deployment/deploy.yaml.template > deployment/deploy.yaml
+          
+          echo "Generated Kubernetes manifest:"
+          cat deployment/deploy.yaml
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Azure login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set up kubeconfig
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ictcoe-edu
+          cluster-name: ${{ env.teamid }}-aks
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ env.namespace }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy to AKS
+        run: |
+          kubectl apply -f deployment/deploy.yaml
+
+      - name: Wait for deployment to be ready
+        run: |
+          kubectl -n ${{ env.namespace }} wait --for=condition=available deployment/lifesub-web --timeout=300s
+          
+          echo "Waiting for service external IP..."
+          while [[ -z $(kubectl -n ${{ env.namespace }} get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}') ]]; do
+            sleep 5
+          done
+          
+          echo "Service external IP: $(kubectl -n ${{ env.namespace }} get svc lifesub-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
