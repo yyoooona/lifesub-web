@@ -17,6 +17,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (userId, password) => {
+    removeAuthToken();
+    setCurrentUser(null);
+    
     try {
       const response = await authApi.login({ userId, password });
       const { accessToken } = response.data.data;
