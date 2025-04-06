@@ -2,9 +2,9 @@
 import axios from 'axios';
 
 // 서비스별 base URL
-const MEMBER_URL = window.__runtime_config__.MEMBER_URL || 'http://localhost:8081';
-const MYSUB_URL = window.__runtime_config__.MYSUB_URL || 'http://localhost:8082';
-const RECOMMEND_URL = window.__runtime_config__.RECOMMEND_URL || 'http://localhost:8083';
+const MEMBER_URL = window.__runtime_config__.MEMBER_URL || 'http://localhost:8081/api/auth';
+const MYSUB_URL = window.__runtime_config__.MYSUB_URL || 'http://localhost:8082/api/mysub';
+const RECOMMEND_URL = window.__runtime_config__.RECOMMEND_URL || 'http://localhost:8083/api/recommend';
 
 // 서비스별 axios 인스턴스 생성
 const createAxiosInstance = (baseURL) => {
@@ -43,24 +43,24 @@ const recommendationApi = createAxiosInstance(RECOMMEND_URL);
 
 // 인증 관련 API
 export const authApi = {
-  login: (loginRequest) => memberApi.post('/api/auth/login', loginRequest),
-  logout: (logoutRequest) => memberApi.post('/api/auth/logout', logoutRequest)
+  login: (loginRequest) => memberApi.post('/login', loginRequest),
+  logout: (logoutRequest) => memberApi.post('/logout', logoutRequest)
 };
 
 // 마이구독 관련 API
 export const mySubscriptionApi = {
-  getTotalFee: (userId) => mysubApi.get(`/api/mysub/total-fee?userId=${userId}`),
-  getMySubscriptions: (userId) => mysubApi.get(`/api/mysub/list?userId=${userId}`),
-  getSubscriptionDetail: (id) => mysubApi.get(`/api/mysub/services/${id}`),
-  subscribe: (id, userId) => mysubApi.post(`/api/mysub/services/${id}/subscribe?userId=${userId}`),
-  cancelSubscription: (id) => mysubApi.delete(`/api/mysub/services/${id}`),
-  getCategories: () => mysubApi.get('/api/mysub/categories'),
-  getServicesByCategory: (categoryId) => mysubApi.get(`/api/mysub/services?categoryId=${categoryId}`)
+  getTotalFee: (userId) => mysubApi.get(`/total-fee?userId=${userId}`),
+  getMySubscriptions: (userId) => mysubApi.get(`/list?userId=${userId}`),
+  getSubscriptionDetail: (id) => mysubApi.get(`/services/${id}`),
+  subscribe: (id, userId) => mysubApi.post(`/services/${id}/subscribe?userId=${userId}`),
+  cancelSubscription: (id) => mysubApi.delete(`/services/${id}`),
+  getCategories: () => mysubApi.get('/categories'),
+  getServicesByCategory: (categoryId) => mysubApi.get(`/services?categoryId=${categoryId}`)
 };
 
 // 추천 관련 API
 export const recommendApi = {  // 이름을 recommendationApi로 변경
-  getRecommendedCategory: (userId) => recommendationApi.get(`/api/recommend/categories?userId=${userId}`)
+  getRecommendedCategory: (userId) => recommendationApi.get(`/categories?userId=${userId}`)
 };
 
 // API 응답 처리 헬퍼 함수
