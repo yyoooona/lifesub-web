@@ -1,4 +1,4 @@
-# lifesub-web/deployment/manifest/deployments/lifesub-web-deployment.yaml
+# lifesub-web/deployment/manifest/deployments/hiondal-web-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,9 +13,11 @@ spec:
       labels:
         app: lifesub-web
     spec:
+      imagePullSecrets:
+      - name: dockerhub
       containers:
       - name: lifesub-web
-        image: dg0200cr.azurecr.io/lifesub/lifesub-web:1.0.0
+        image: docker.io/hiondal/lifesub-web:1.0.0
         imagePullPolicy: Always
         ports:
         - containerPort: 18080
