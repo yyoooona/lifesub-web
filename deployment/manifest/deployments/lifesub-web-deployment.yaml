@@ -17,7 +17,7 @@ spec:
       - name: dockerhub
       containers:
       - name: lifesub-web
-        image: dg0200cr.azurecr.io/lifesub/member:1.0.0
+        image: dg0200cr.azurecr.io/lifesub/lifesub-web:1.0.0
         imagePullPolicy: Always
         ports:
         - containerPort: 18080
