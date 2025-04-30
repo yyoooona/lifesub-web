@@ -8,6 +8,14 @@
 - **비용 분석**: 월별 구독료 총액 및 수준 확인 (Liker, Collector, Addict)
 - **맞춤형 추천**: 사용자의 지출 패턴 기반 새로운 구독 서비스 추천
 
+### 1.2 MVP 산출물
+- **발표자료**: {발표자료 링크}
+- **설계결과**: {설계결과 링크}
+- **Git Repo**: 
+  - **프론트엔드**: https://github.com/cna-bootcamp/lifesub-web.git
+  - **백엔드**: https://github.com/cna-bootcamp/lifesub.git
+  - **manifest**: https://github.com/cna-bootcamp/lifesub-manifest.git
+
 ## 2. 시스템 아키텍처
 
 ### 2.1 전체 구조
@@ -26,7 +34,8 @@
 - **코드 품질**: SonarQube
 - **백킹 서비스**:
   - **Database**: PostgreSQL
-  - **Message Queue**: 없음 
+  - **Message Queue**: RabbitMQ
+  - **기타**: Redis
 
 ## 3. 프론트엔드 (lifesub-web)
 
