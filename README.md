@@ -24,6 +24,9 @@
 - **인프라**: Azure Kubernetes Service (AKS), Azure Container Registry
 - **CI/CD**: Jenkins, Podman (컨테이너 빌드)
 - **코드 품질**: SonarQube
+- **백킹 서비스**:
+  - **Database**: PostgreSQL
+  - **Message Queue**: 없음 
 
 ## 3. 프론트엔드 (lifesub-web)
 
