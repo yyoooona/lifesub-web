@@ -306,8 +306,15 @@
    kubectl apply -f deployment/manifest/
    ```
 
-### 6.3 테스트 방법
-{테스트 절차를 기술}  
+### 6.3 로그인
+1) 프론트 페이지 주소 구하기   
+```
+k get ing
+```
+
+2) 로그인 
+- ID: user01 ~ user05
+- PW: P@ssw0rd$
 
 
 ## 7. 팀
