@@ -309,6 +309,7 @@
 ### 6.3 로그인
 1) 프론트 페이지 주소 구하기   
 ```
+kubens {namespace}
 k get ing
 ```
 
