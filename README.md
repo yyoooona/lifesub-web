@@ -306,6 +306,10 @@
    kubectl apply -f deployment/manifest/
    ```
 
+### 6.3 테스트 방법
+{테스트 절차를 기술}  
+
+
 ## 7. 팀
 
 - 오유진 "피오" - Product Owner
