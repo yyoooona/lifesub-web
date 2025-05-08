@@ -15,11 +15,13 @@
   - **프론트엔드**: https://github.com/cna-bootcamp/lifesub-web.git
   - **백엔드**: https://github.com/cna-bootcamp/lifesub.git
   - **manifest**: https://github.com/cna-bootcamp/lifesub-manifest.git
+- **시연 동영상**: {시연 동영상 링크}  
 
 ## 2. 시스템 아키텍처
 
 ### 2.1 전체 구조
 프론트엔드와 마이크로서비스 백엔드로 구성된 웹 애플리케이션
+{전체 서비스와 관계를 표현한 Context Map이나 논리아키텍처}
 
 ### 2.2 마이크로서비스 구성
 - **회원 서비스 (Member)**: 사용자 인증 및 토큰 관리
