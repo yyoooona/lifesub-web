@@ -56,7 +56,7 @@ export const mySubscriptionApi = {
   cancelSubscription: (id) => mysubApi.delete(`/services/${id}`),
   getCategories: () => mysubApi.get('/categories'),
   getServicesByCategory: (categoryId) => mysubApi.get(`/services?categoryId=${categoryId}`)
-};
+}; 
 
 // 추천 관련 API
 export const recommendApi = {  // 이름을 recommendationApi로 변경
