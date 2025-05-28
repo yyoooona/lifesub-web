@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lifesub-web-config
+  namespace: dg0411-lifesub-ns
+data:
+  runtime-env.js: |
+    window.__runtime_config__ = {
+        MEMBER_URL: 'http://dg0411.20.249.184.228.nip.io/api/auth',
+        MYSUB_URL: 'http://dg0411.20.249.184.228.nip.io/api/mysub',
+        RECOMMEND_URL: 'http://dg0411.20.249.184.228.nip.io/api/recommend'
+    };
